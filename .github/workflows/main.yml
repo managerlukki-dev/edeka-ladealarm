@@ -1,0 +1,33 @@
+
+name: EDEKA Ladealarm
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/5 * * * *"
+
+jobs:
+  check-chargers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Abhängigkeiten installieren
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests playwright
+          playwright install chromium --with-deps
+
+      - name: Ladepunkte prüfen und Cloudflare benachrichtigen
+        env:
+          WORKER_URL: ${{ secrets.WORKER_URL }}
+          PUSH_SECRET: ${{ secrets.PUSH_SECRET }}
+        run: python monitor.py
