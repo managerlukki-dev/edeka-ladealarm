@@ -38,8 +38,18 @@ async def main():
         try:
             await page.goto(URL, wait_until="domcontentloaded", timeout=60000)
             await page.wait_for_timeout(15000)
-            print("SEITENTEXT:")
-            print((await page.locator("body").inner_text())[:3000])
+            print("SEITENTITEL:", await page.title())
+
+try:
+    text = await page.locator("body").inner_text(timeout=10000)
+    print("SEITENTEXT:", repr(text[:3000]))
+except Exception as error:
+    print("TEXTFEHLER:", repr(str(error)))
+
+print("URL NACH DEM LADEN:", page.url)
+print("ANZAHL RAHMEN:", len(page.frames))
+for frame in page.frames:
+    print("RAHMEN:", frame.url.split("?")[0])
         except Exception as error:
             print("TESTFEHLER:", type(error).__name__, str(error)[:300])
         finally:
