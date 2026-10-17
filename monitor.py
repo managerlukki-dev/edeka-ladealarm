@@ -1,50 +1,47 @@
 
 import asyncio
+from urllib.parse import urlsplit
 from playwright.async_api import async_playwright
 
 URL = "https://lademap.ladenetz.de/"
-CHARGERS = [
-    "DESWDE000020101",
-    "DESWDE000020102",
-]
 
 async def main():
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
-        page = await browser.new_page(
-            locale="de-DE",
-            user_agent=(
-                "Mozilla/5.0 (X11; Linux x86_64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/131.0.0.0 Safari/537.36"
-            ),
-        )
+        page = await browser.new_page(locale="de-DE")
 
-        page.on("response", lambda response: print(
-            "DETAIL:", response.status,
-            response.url.split("?")[0]
-        ) if "getObject_detail.php" in response.url else None)
+        def on_response(response):
+            request = response.request
+            if request.resource_type not in ("xhr", "fetch"):
+                return
+
+            parts = urlsplit(response.url)
+            safe_url = f"{parts.scheme}://{parts.netloc}{parts.path}"
+            print(
+                f"NETZWERK: {response.status} "
+                f"{request.resource_type} {safe_url}"
+            )
+
+            async def show_body():
+                try:
+                    content_type = response.headers.get("content-type", "")
+                    if "json" in content_type.lower():
+                        body = await response.text()
+                        print("DATENANTWORT:", body[:1200])
+                except Exception:
+                    pass
+
+            asyncio.create_task(show_body())
+
+        page.on("response", on_response)
 
         try:
-            response = await page.goto(
-                URL, wait_until="domcontentloaded", timeout=60000
-            )
-            print("HTTP:", response.status if response else "keine Antwort")
-            await page.wait_for_timeout(8000)
-
-            print("SEITENTITEL:", await page.title())
-            text = await page.locator("body").inner_text(timeout=15000)
+            await page.goto(URL, wait_until="domcontentloaded", timeout=60000)
+            await page.wait_for_timeout(15000)
             print("SEITENTEXT:")
-            print(text[:5000])
-
-            for charger in CHARGERS:
-                print(
-                    "LADEPUNKT", charger,
-                    "GEFUNDEN:" if charger in text else "NICHT IM TEXT:"
-                )
-
+            print((await page.locator("body").inner_text())[:3000])
         except Exception as error:
-            print("TESTFEHLER:", type(error).__name__, str(error)[:500])
+            print("TESTFEHLER:", type(error).__name__, str(error)[:300])
         finally:
             await browser.close()
 
