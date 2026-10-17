@@ -38,18 +38,26 @@ Unter Settings → Secrets and variables → Actions müssen vorhanden sein:
 ### Cloudflare Worker
 
 Der Worker muss `POST /external-update` mit dem Header
-`X-Ladealarm-Secret` entgegennehmen und die vom bestehenden Sender verwendete
-JSON-Form `{ "status": [{ "id", "status", "seit", "typ" }, ...] }`
-akzeptieren. Der Worker-Code liegt nicht in diesem Repository. Daher konnten
-weder Secret-Prüfung und KV-Binding noch das Telegram-Verhalten gegen den
-tatsächlich eingesetzten Worker überprüft werden.
+`X-Ladealarm-Secret` entgegennehmen und die JSON-Form
+`{ "status": [{ "id", "status", "seit", "typ" }, ...] }` akzeptieren.
+Der im Chat bereitgestellte Worker-Code wurde gegen diesen Sender geprüft:
+Der erste gültige Abruf wird ohne Alarm gespeichert, unveränderte Zustände
+lösen nichts aus, und ein echter Wechsel zwischen „Frei“ und „Belegt“ sendet
+eine Nachricht. Falsche Secrets werden abgewiesen; unbekannte und
+„Außer Betrieb“-Statuswerte werden nicht gespeichert und lösen keinen Alarm
+aus.
 
-Vor dem produktiven Start muss am Worker bestätigt werden, dass der erste
-gültige Abruf nur als KV-Ausgangswert gespeichert wird und keine Nachricht
-sendet. Benachrichtigungen dürfen nur bei einem Vergleich mit einem bereits
-gespeicherten gültigen Zustand ausgelöst werden. Ungültige oder fehlende
-Statuswerte müssen den KV-Zustand unverändert lassen. Für diese Worker-Prüfung
-ist dessen Quellcode erforderlich.
+Der Worker-Code ist weiterhin nicht im Repository versioniert. Der geprüfte
+Code akzeptiert nur „Frei“ und „Belegt“. Liefert Ladenetz „Außer Betrieb“,
+weist der Worker das Update mit HTTP 422 zurück; der KV-Zustand bleibt dabei
+unverändert.
+
+Der Worker speichert den neuen KV-Zustand vor dem Telegram-Versand. Fehler beim
+Versand werden protokolliert, aber nicht erneut versucht. Bei einem
+vorübergehenden Telegram-Fehler kann deshalb eine Benachrichtigung verloren
+gehen, obwohl der Status gespeichert wurde. Für automatische Wiederholung
+wäre eine dauerhafte Zustellwarteschlange im Worker nötig; diese Änderung ist
+nicht Teil dieses Abruf-PRs.
 
 ## Workflow und Prüfung
 
