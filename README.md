@@ -21,6 +21,9 @@ Die Antwort wird nur akzeptiert, wenn beide erwarteten Ladepunkt-IDs und je
 ein eindeutiger Status gefunden werden. `Unbekannt`, leere Antworten,
 Zeitüberschreitungen und unerwartete Formate brechen den Lauf ab; sie werden
 nicht an den Worker gesendet und niemals als „Frei“ oder „Belegt“ ausgegeben.
+Zeitangaben „seit“ werden aus der Lademap-Antwort nicht übernommen, weil sie
+im abgefragten HTML nicht zuverlässig einem Ladepunkt zugeordnet werden können.
+So wird keine Zeit einem falschen Anschluss zugewiesen.
 Der Abruf kann sich ändern, wenn Ladenetz seine nicht als öffentliche API
 dokumentierte Karten-Schnittstelle oder das Antwort-HTML ändert.
 
