@@ -74,16 +74,13 @@ def parse_station_status(markup: str) -> list[dict[str, str]]:
         if normalized_status not in ALLOWED_STATUSES:
             raise MonitorError("Ladenetz meldet für einen Ladepunkt keinen bekannten Status.")
 
-        since_match = re.search(
-            r"\bseit\s*:\s*(?:(?:Mo|Di|Mi|Do|Fr|Sa|So)\s*)?(\d{1,2}:\d{2})",
-            row,
-            flags=re.IGNORECASE,
-        )
+        # Ladenetz's flattened detail HTML does not reliably bind the nearby
+        # "seit" timestamp to a single charger; omit it rather than mislabel it.
         rows.append(
             {
                 "id": charger_id,
                 "status": normalized_status,
-                "seit": since_match.group(1) if since_match else "",
+                "seit": "",
                 "typ": "Typ 2",
             }
         )
