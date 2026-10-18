@@ -18,14 +18,18 @@ HTML-Seite, während der korrekte HTTP-Aufruf mit Viewer-Session echte
 Ladepunktdetails zurückgab.
 
 Die Antwort wird nur akzeptiert, wenn beide erwarteten Ladepunkt-IDs und je
-ein eindeutiger Status gefunden werden. `Unbekannt`, leere Antworten,
+ein eindeutiger Status gefunden werden. Die „seit“-Zeit wird über die von
+Ladenetz in der Zeitzeile und Statuszeile gemeinsam verwendete interne
+Stecker-ID dem richtigen Ladepunkt zugeordnet. Fehlt diese Verknüpfung oder
+ist sie mehrdeutig, bleibt nur die Zeit leer; der Status wird weiter nur
+über die konkrete Ladepunkt-ID gelesen. `Unbekannt`, leere Antworten,
 Zeitüberschreitungen und unerwartete Formate brechen den Lauf ab; sie werden
 nicht an den Worker gesendet und niemals als „Frei“ oder „Belegt“ ausgegeben.
-Zeitangaben „seit“ werden aus der Lademap-Antwort nicht übernommen, weil sie
-im abgefragten HTML nicht zuverlässig einem Ladepunkt zugeordnet werden können.
-So wird keine Zeit einem falschen Anschluss zugewiesen.
-Der Abruf kann sich ändern, wenn Ladenetz seine nicht als öffentliche API
-dokumentierte Karten-Schnittstelle oder das Antwort-HTML ändert.
+Ein echter öffentlicher Detailabruf wurde am 19.10.2026 geprüft; er lieferte
+beide Ladepunkt-IDs, Statuswerte und mit derselben internen Stecker-ID
+verknüpfte „seit“-Zeiten. Der Abruf kann sich ändern, wenn Ladenetz seine
+nicht als öffentliche API dokumentierte Karten-Schnittstelle oder das
+Antwort-HTML ändert.
 
 ## Einrichtung
 
@@ -79,4 +83,3 @@ python -m unittest discover -s tests -v
 Ein echter End-to-End-Worker-Aufruf benötigt die beiden oben genannten
 GitHub-Secrets. In diesem Repository wurden keine produktiven Secrets
 verändert oder ausgelesen.
-

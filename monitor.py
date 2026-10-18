@@ -34,6 +34,47 @@ class _TextExtractor(HTMLParser):
         self.parts.append(data)
 
 
+class _StationRowsParser(HTMLParser):
+    """Collect Ladenetz plug-time and charger-detail rows by shared DOM id."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.stack: list[dict[str, object]] = []
+        self.plug_rows: list[tuple[str, str]] = []
+        self.detail_rows: list[tuple[str, str]] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag.lower() != "li":
+            return
+
+        attributes = dict(attrs)
+        row: dict[str, object] = {"parts": []}
+        element_id = attributes.get("id") or ""
+        onclick = attributes.get("onclick") or ""
+        detail_match = re.fullmatch(r"\d+", element_id)
+        plug_match = re.search(r"togglePlugInfo\s*\(\s*['\"](\d+)['\"]\s*\)", onclick)
+        if detail_match:
+            row.update(kind="detail", key=element_id)
+        elif plug_match:
+            row.update(kind="plug", key=plug_match.group(1))
+        self.stack.append(row)
+
+    def handle_data(self, data: str) -> None:
+        if self.stack:
+            self.stack[-1]["parts"].append(data)  # type: ignore[union-attr]
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.lower() != "li" or not self.stack:
+            return
+        row = self.stack.pop()
+        kind = row.get("kind")
+        if kind not in {"plug", "detail"}:
+            return
+        text = _plain_text(" ".join(row["parts"]))
+        target = self.plug_rows if kind == "plug" else self.detail_rows
+        target.append((str(row["key"]), text))
+
+
 def _plain_text(markup: str) -> str:
     parser = _TextExtractor()
     parser.feed(markup)
@@ -42,20 +83,37 @@ def _plain_text(markup: str) -> str:
 
 
 def parse_station_status(markup: str) -> list[dict[str, str]]:
-    """Parse each exact charger row; fail closed on missing/unknown states."""
-    text = _plain_text(markup)
-    rows: list[dict[str, str]] = []
+    """Parse statuses and only attach times linked by Ladenetz's shared DOM id."""
+    parser = _StationRowsParser()
+    parser.feed(markup)
+    parser.close()
 
-    for charger_id in CHARGERS:
-        match = re.search(
-            rf"ID\s*:\s*{re.escape(charger_id)}\b(?P<row>.*?)(?=\bID\s*:|$)",
+    times_by_key: dict[str, list[str]] = {}
+    for key, text in parser.plug_rows:
+        time_match = re.search(
+            r"\bseit\s*:\s*(?:(?:Mo|Di|Mi|Do|Fr|Sa|So)\s*)?(\d{1,2}:\d{2})\b",
             text,
             flags=re.IGNORECASE,
         )
-        if not match:
-            raise MonitorError("Die Antwort enthält nicht beide erwarteten Ladepunkte.")
+        if time_match:
+            times_by_key.setdefault(key, []).append(time_match.group(1))
 
-        row = match.group("row")
+    details_by_charger: dict[str, tuple[str, str]] = {}
+    for key, text in parser.detail_rows:
+        id_match = re.search(r"\bID\s*:\s*([A-Z0-9]+)\b", text, flags=re.IGNORECASE)
+        if id_match:
+            charger_id = id_match.group(1).upper()
+            if charger_id in CHARGERS:
+                if charger_id in details_by_charger:
+                    raise MonitorError("Ladenetz hat einen Ladepunkt mehrfach geliefert.")
+                details_by_charger[charger_id] = (key, text)
+
+    rows: list[dict[str, str]] = []
+    for charger_id in CHARGERS:
+        detail = details_by_charger.get(charger_id)
+        if not detail:
+            raise MonitorError("Die Antwort enthält nicht beide erwarteten Ladepunkte.")
+        key, row = detail
         status_match = re.search(
             r"\bStatus\s*:\s*(Frei|Belegt|Außer\s+Betrieb|Unbekannt)\b",
             row,
@@ -74,13 +132,13 @@ def parse_station_status(markup: str) -> list[dict[str, str]]:
         if normalized_status not in ALLOWED_STATUSES:
             raise MonitorError("Ladenetz meldet für einen Ladepunkt keinen bekannten Status.")
 
-        # Ladenetz's flattened detail HTML does not reliably bind the nearby
-        # "seit" timestamp to a single charger; omit it rather than mislabel it.
+        candidate_times = times_by_key.get(key, [])
+        since = candidate_times[0] if len(candidate_times) == 1 else ""
         rows.append(
             {
                 "id": charger_id,
                 "status": normalized_status,
-                "seit": "",
+                "seit": since,
                 "typ": "Typ 2",
             }
         )
@@ -197,4 +255,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
