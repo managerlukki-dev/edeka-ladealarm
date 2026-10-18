@@ -172,6 +172,7 @@ def push_to_worker(status: list[dict[str, str]]) -> None:
         data=body,
         headers={
             "Content-Type": "application/json",
+            "User-Agent": "Edeka-Ladealarm/1.0",
             "X-Ladealarm-Secret": push_secret,
         },
         method="POST",

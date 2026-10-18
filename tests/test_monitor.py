@@ -1,7 +1,33 @@
+import os
 import unittest
+from unittest.mock import MagicMock, patch
 
-from monitor import MonitorError, parse_station_status
+from monitor import MonitorError, parse_station_status, push_to_worker
 
+
+
+class PushToWorkerTests(unittest.TestCase):
+    @patch("monitor.urlopen")
+    def test_worker_request_uses_named_user_agent(self, urlopen_mock):
+        response = MagicMock()
+        response.__enter__.return_value.status = 200
+        urlopen_mock.return_value = response
+
+        with patch.dict(
+            os.environ,
+            {
+                "WORKER_URL": "https://worker.example.workers.dev",
+                "PUSH_SECRET": "test-secret",
+            },
+        ):
+            push_to_worker([])
+
+        request = urlopen_mock.call_args.args[0]
+        self.assertEqual(
+            request.get_header("User-agent"),
+            "Edeka-Ladealarm/1.0",
+        )
+        self.assertEqual(request.get_method(), "POST")
 
 class ParseStationStatusTests(unittest.TestCase):
     def test_extracts_both_exact_charger_statuses(self):
