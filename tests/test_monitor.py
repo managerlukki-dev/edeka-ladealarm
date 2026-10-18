@@ -40,9 +40,21 @@ class ParseStationStatusTests(unittest.TestCase):
             parse_station_status(markup),
             [
                 {"id": "DESWDE000020101", "status": "Belegt", "seit": "", "typ": "Typ 2"},
-                {"id": "DESWDE000020102", "status": "Frei", "seit": "10:42", "typ": "Typ 2"},
+                {"id": "DESWDE000020102", "status": "Frei", "seit": "", "typ": "Typ 2"},
             ],
         )
+
+
+    def test_omits_times_that_cannot_be_tied_to_the_correct_charger(self):
+        markup = """
+        <div>ID: DESWDE000020101 Stecker: Typ 2 Status: Frei seit: 19:45</div>
+        <div>ID: DESWDE000020102 Stecker: Typ 2 Status: Belegt seit: 12:22</div>
+        """
+
+        statuses = parse_station_status(markup)
+
+        self.assertEqual([item["status"] for item in statuses], ["Frei", "Belegt"])
+        self.assertEqual([item["seit"] for item in statuses], ["", ""])
 
     def test_accepts_out_of_service_as_a_known_nonavailability_state(self):
         markup = """
